@@ -31,8 +31,6 @@ public class InstructionSequencer {
 	protected static final String THREAD_INDEX = "threadIndex";	// TODO put them in ECJ's param maybe??
 	/** IMPORTANT: change the name here if the original name was changed in the template */
 	protected static final String MAPPED_THREAD_INDEX = "tid";	// TODO put them in ECJ's param maybe??
-	/** IMPORTANT: change the name here if the original name was changed in the template */
-	protected static final String EVAL_RESULT_VARIABLE = "eval_result";
 	
 	/** Line separator for Java < 7 */
 	protected static String lineSeparator = System.getProperty("line.separator");
@@ -96,14 +94,6 @@ public class InstructionSequencer {
 	 */
 	public String getMappedThreadIndex() {
 		return MAPPED_THREAD_INDEX;
-	}
-	
-	/**
-	 * @return	Returns the variable that holds the popped value from the stack at the end of the
-	 * 			interpretation.
-	 */
-	public String getEvaluationResultVariable() {
-		return EVAL_RESULT_VARIABLE;
 	}
 	
 	/**

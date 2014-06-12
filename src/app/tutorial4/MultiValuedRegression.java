@@ -1,10 +1,12 @@
 package app.tutorial4;
+import com.sir_m2x.transscale.pointers.CudaDouble2D;
 import com.sir_m2x.transscale.pointers.CudaPrimitive2D;
 
 import ec.util.*;
 import ec.*;
 import ec.gp.*;
 import ec.gp.cuda.CudaProblem;
+import ec.gp.cuda.KernelOutputData;
 import ec.gp.koza.*;
 
 public class MultiValuedRegression extends CudaProblem {
@@ -73,6 +75,52 @@ public class MultiValuedRegression extends CudaProblem {
         ind.evaluated = true;
     }
     
+    @Override
+	public void assignFitness(EvolutionState state, Individual ind, KernelOutputData kernelResults) {
+    	OutputData kernelOutput = (OutputData)kernelResults;
+    	
+    	double[] resultArray = kernelOutput.output;
+    	
+    	double sum = 0;
+    	final double PROBABLY_ZERO = 1.11E-15;
+    	int hits = 0;
+    	
+    	for (int i = 0 ; i < resultArray.length ; i++) {
+    		double expected = problemData.getExpectedOutput(i);
+    		double obtained = resultArray[i];
+    		
+    		double result = Math.abs(expected - obtained);
+    		
+    		if (result < PROBABLY_ZERO)
+            	result = 0.0;
+    		
+    		if (result <= 0.01)
+            	hits++;
+    		
+    		sum += result;
+    	}
+    	
+//    	double cpuResult = getFitness(state, ind, 0);
+//    	
+//    	if (cpuResult != sum) {
+//    		System.out.println(String.format("Different! Got %f but CPU said %f", sum, cpuResult));
+//    	}
+
+    	// the fitness better be KozaFitness!
+        KozaFitness f = ((KozaFitness)ind.fitness);
+        f.setStandardizedFitness(state, sum);
+        f.hits = hits;
+	}
+    
+    @Override
+    public void describe(EvolutionState state, Individual ind,
+    		int subpopulation, int threadnum, int log) {
+    	super.describe(state, ind, subpopulation, threadnum, log);
+    	
+    	((GPIndividual)ind).trees[0].printStyle = 3;
+    	((GPIndividual)ind).trees[0].printTreeForHumans(state, log);
+    }
+    
     public double getFitness(final EvolutionState state, final Individual ind, final int threadnum) {
     	double sum = 0;
     	double result;
@@ -91,7 +139,8 @@ public class MultiValuedRegression extends CudaProblem {
     
     public static void main(String[] args) {
     	String[] arguments = new String[] {"-file", "bin/app/tutorial4/tutorial4.params"};
-    	CudaPrimitive2D.usePitchedMemory(true);	// Do use the pitched memory
+//    	CudaPrimitive2D.usePitchedMemory(true);	// Do use the pitched memory FIXME pitch is not supported
+//    	unless the kernel takes the pitch values as well!
     	ec.Evolve.main(arguments);
     }
 }

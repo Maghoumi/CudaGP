@@ -27,7 +27,7 @@ gp.fs.0.func.4.nc = nc2
 
 eval.problem = app.tutorial4.MultiValuedRegression
 eval.problem.data = app.tutorial4.TutorialData
-eval.problem.size = 9
+eval.problem.size = 1024
 
 ######################
 ##	CUDA STUFF
@@ -40,18 +40,22 @@ pop.subpop.0.species.pipe.source.0.prob = 0.9
 pop.subpop.0.species.pipe.source.1 = ec.gp.cuda.CudaMutationPipeline
 pop.subpop.0.species.pipe.source.1.prob = 0.1
 
-cuda.kernel.args.size = 3
-cuda.kernel.args.0.name = x
-cuda.kernel.args.0.type = double*
-cuda.kernel.args.1.name = y
-cuda.kernel.args.1.type = double*
-cuda.kernel.args.2.name = expected
-cuda.kernel.args.2.type = double*
+cuda.kernel.input.size = 2
+cuda.kernel.input.0.name = x
+cuda.kernel.input.0.type = double*
+cuda.kernel.input.1.name = y
+cuda.kernel.input.1.type = double*
+
+cuda.kernel.output.class = app.tutorial4.OutputData
+cuda.kernel.output.name = output
+cuda.kernel.output.type = double*
 
 
-eval.evaluation-method = gpu
+
 #jobs = 10
+eval.evaluation-method = gpu
 generations = 100
+pop.subpop.0.size = 1024
 
 evalthreads = 				auto
 breedthreads = 				auto

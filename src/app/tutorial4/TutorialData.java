@@ -24,8 +24,8 @@ public class TutorialData extends CudaData {
 	protected CudaDouble2D devX = null;
 	/** Device instances for y */
 	protected CudaDouble2D devY = null;
-	/** Device expected output for each pair of (x, y) */
-	protected CudaDouble2D devExpectedOutput = null;
+//	/** Device expected output for each pair of (x, y) */
+//	protected CudaDouble2D devExpectedOutput = null;
 	
 	/** To be used by the X and Y terminals */
 	public double currentX;
@@ -54,7 +54,7 @@ public class TutorialData extends CudaData {
 		
 		this.devX = new CudaDouble2D(problemSize, 1, 1, this.xValues, true);
 		this.devY = new CudaDouble2D(problemSize, 1, 1, this.yValues, true);
-		this.devExpectedOutput = new CudaDouble2D(problemSize, 1, 1, this.expectedOutput, true);
+//		this.devExpectedOutput = new CudaDouble2D(problemSize, 1, 1, this.expectedOutput, true);
 	}
 
 	/**
@@ -88,21 +88,21 @@ public class TutorialData extends CudaData {
 //		return this.yValues[index];
 //	}
 //	
-//	/**
-//	 * @param index
-//	 * @return	The expected result of the equation at the specified index
-//	 */
-//	public float getExpectedResult(int index) {
-//		return this.expectedOutput[index];
-//	}
+	/**
+	 * @param index
+	 * @return	The expected result of the equation at the specified index
+	 */
+	public double getExpectedOutput(int index) {
+		return this.expectedOutput[index];
+	}
 
 	@Override
 	public Pointer[] getArgumentPointers() {
-		Pointer[] result = new Pointer[3];
+		Pointer[] result = new Pointer[2];
 		
 		result[0] = devX.toPointer();
 		result[1] = devY.toPointer();
-		result[2] = devExpectedOutput.toPointer();
+//		result[2] = devExpectedOutput.toPointer();
 		
 		return result;
 	}
@@ -111,14 +111,14 @@ public class TutorialData extends CudaData {
 	public void preInvocationTasks(CUmodule module) {
 		devX.reallocate();
 		devY.reallocate();
-		devExpectedOutput.reallocate();
+//		devExpectedOutput.reallocate();
 	}
 
 	@Override
 	public void postInvocationTasks(CUmodule module) {
 		devX.free();
 		devY.free();
-		devExpectedOutput.free();
+//		devExpectedOutput.free();
 	}
 
 	/**
@@ -132,4 +132,8 @@ public class TutorialData extends CudaData {
 		this.currentExpectedResult = expectedOutput[index];
 	}
 
+	@Override
+	public long[] getKernelInputPitchInElements() {
+		return this.devX.getDevPitchInElements();
+	}
 }

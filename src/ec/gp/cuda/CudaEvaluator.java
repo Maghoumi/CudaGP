@@ -128,12 +128,12 @@ public abstract class CudaEvaluator extends SimpleEvaluator {
 			
 			// Call the CUDA kernel using the defined problem data
 			CudaData data = (CudaData) ((GPProblem)p_problem).input;
-			double[] fitnesses = CudaInterop.getInstance().evaluatePopulation(threadExpList, data);
+			KernelOutputData[] outputs = CudaInterop.getInstance().evaluatePopulation(state, threadExpList, data);
 			
 			// call the assignFitness and assign fitnesses to each individual
 			if (state.evalthreads == 1) {
 				threadExpList.get(0).clear();
-				assignFitness(state, subPop, 0, fitnesses, from, to);
+				assignFitness(state, subPop, 0, outputs, from, to);
 			}
 			else {
 				Thread[] t = new Thread[state.evalthreads];
@@ -144,12 +144,12 @@ public abstract class CudaEvaluator extends SimpleEvaluator {
 					
 					threadExpList.get(y).clear();
 					
-					FitnessAssignmentThread r = new FitnessAssignmentThread();
+					OutputAssignmentThread r = new OutputAssignmentThread();
 					r.threadnum = y;
 					r.me = this;
 					r.state = state;
 					r.subPop = subPop;
-					r.fitnesses = fitnesses;
+					r.outputs = outputs;
 					r.from = from;
 					r.to = to;
 					t[y] = new Thread(r);
@@ -185,19 +185,24 @@ public abstract class CudaEvaluator extends SimpleEvaluator {
 	}
 	
 	/**
-	 * Assigns the calculated CUDA fitness to the corresponding individual
+	 * Passes the calculated CUDA outputs to each individual in the population for fitness evaluation
 	 * 
 	 * @param state
 	 * @param threadnum
 	 * @param startIndex
 	 * @param endIndex
 	 */
-	protected void assignFitness(EvolutionState state, CudaSubpopulation subPop, int threadnum, double[] fitnesses, int[] from, int[] to) {
+	protected void assignFitness(EvolutionState state, CudaSubpopulation subPop, int threadnum, KernelOutputData[] fitnesses, int[] from, int[] to) {
 		List<GPIndividual> myUnevals = subPop.needEval.get(threadnum); // get my unevaluated individuals
+		CudaProblem problem = (CudaProblem) p_problem;
 		
 		int indIndex = 0;	// hold the index to my individuals
 		for (int i = from[threadnum] ; i <= to[threadnum] ; i++) {
 			GPIndividual currentInd = myUnevals.get(indIndex++);
+			
+			// Ask the problem to assign a fitness value to this individual based
+			// on the outputs of the kernel
+			problem.assignFitness(state, currentInd, fitnesses[i]);
 			
 			/**
 			double cpuResult = ((MultiValuedRegression)p_problem).getFitness(state, currentInd, threadnum);			
@@ -206,7 +211,6 @@ public abstract class CudaEvaluator extends SimpleEvaluator {
 				System.out.println(String.format("Different! Expected %f but got %f", cpuResult, fitnesses[i]));
 			}*/
 			
-			setFitness(state, currentInd, fitnesses[i]);
 			currentInd.evaluated = true; // Current individual is now evaluated :-)
 		}
 		
@@ -242,17 +246,17 @@ public abstract class CudaEvaluator extends SimpleEvaluator {
 	}
 	
 	/** A private helper class for implementing multithreaded fitness assignment */
-	private class FitnessAssignmentThread implements Runnable {
+	private class OutputAssignmentThread implements Runnable {
 		public CudaEvaluator me;
 		public EvolutionState state;
 		public int threadnum;
 		public int[] from;
 		public int[] to;
-		public double[] fitnesses;
+		public KernelOutputData[] outputs;
 		public CudaSubpopulation subPop;
 		
 		public synchronized void run() {
-			me.assignFitness(state, subPop, threadnum, fitnesses, from, to);
+			me.assignFitness(state, subPop, threadnum, outputs, from, to);
 		}
 	}
 }

@@ -29,11 +29,25 @@ public abstract class CudaData extends GPData {
 	 * 		and they should be in the same order defined in ECJ's
 	 * 		parameter file and the same order that the kernel function
 	 * 		expects them. You should only provide a pointer to you own
-	 * 		defined kernel arguments. Other arguments (such as the fitnesses[]
-	 * 		array will be taken care of automatically by CudaEvaluator.
+	 * 		defined kernel arguments as well as the pointer to the output
+	 * 		memory (pointer/array) that will store the evaluation results
+	 * 		of the expressions. Other arguments will be taken care of
+	 * 		automatically by CudaEvaluator.
 	 * 
 	 */
 	public abstract Pointer[] getArgumentPointers();
+	
+	/**
+	 * @return	The pitch value for the kernel input arguments. This pitch value
+	 * 			is provided by the CudaPrimitive2D class. The pitch value is usually
+	 * 			the same as the width for a 2D array. If the array is allocated using
+	 * 			cudaMemAllocPitch then the width of the 2D array may be greater than
+	 * 			the allocated array's width (refer to CUDA C Programming Guide for more
+	 * 			information on this)    
+	 * 
+	 * NOTE: Use pitch in elements as defined in the CudaPrimitive2D class
+	 */
+	public abstract long[] getKernelInputPitchInElements();
 	
 	/**
 	 * Defines the operations that should be done before a CUDA kernel is invoked.

@@ -5,6 +5,7 @@ import ec.Singleton;
 import ec.util.Parameter;
 import gnu.trove.list.array.TByteArrayList;
 
+import java.beans.DesignMode;
 import java.io.*;
 import java.util.*;
 
@@ -36,11 +37,20 @@ public class CudaInterop /*implements Singleton*/ {
     public final static String P_GEN_DEBUG = "gen-debug";
     public final static String P_EVAL_BLOCK_SIZE = "eval-block-size";
     
+    /*
+     * The tags that are replaced in the kernel template are all
+     * defined in here. If you change a tag here, it must also be
+     * changed in the evaluator template and vice versa.
+     */
     private static final String T_STACK_SIZE = "/*@@stack-size@@*/";
     private static final String T_PROBLEM_SIZE = "/*@@problem-size@@*/";
     private static final String T_BLOCK_SIZE = "/*@@block-size@@*/";
     private static final String T_KERNEL_ARGS = "/*@@kernel-args@@*/";
     private static final String T_INTERPRETER = "/*@@interpreter@@*/";
+    private static final String T_KERNEL_OUT = "/*@@kernel-out@@*/";
+    private static final String T_KERNEL_OUT_NAME = "/*@@kernel-out-name@@*/";
+    private static final String T_KERNEL_OUT_TYPE = "/*@@kernel-out-type@@*/";
+    private static final String T_KERNEL_OUT_TYPE_NOPOINTER = "/*@@kernel-out-type-nopointer@@*/";
 	
 	/** Holds the single instance of this class during program execution */
 	protected static CudaInterop instance = null;
@@ -118,9 +128,18 @@ public class CudaInterop /*implements Singleton*/ {
 		template = template.replace(T_STACK_SIZE, "" + kernelInfo.getStackSize());
 		template = template.replace(T_PROBLEM_SIZE, "" + this.problemSize);
 		template = template.replace(T_BLOCK_SIZE, "" + this.evaluateBlockSize);
-		template = template.replace(T_KERNEL_ARGS, "" + kernelInfo.getKernelArgSignature());
-		template = template.replace(T_INTERPRETER, "" + this.interpreterCode);
+		template = template.replace(T_INTERPRETER, this.interpreterCode);
 		//TODO support arch=? and sm=? in parameter file (as well as other CUDA parameters)
+		
+		template = template.replace(T_KERNEL_ARGS, kernelInfo.getKernelArgSignature());
+		template = template.replace(T_KERNEL_OUT, kernelInfo.getKernelOutputSignature());
+		StringPair kernelOutput = kernelInfo.getKernelOutput();
+		String name = kernelOutput.getKey();
+		String type = kernelOutput.getValue();
+		template = template.replace(T_KERNEL_OUT_NAME, name);
+		template = template.replace(T_KERNEL_OUT_TYPE, type);
+		template = template.replace(T_KERNEL_OUT_TYPE_NOPOINTER, type.replace("*", ""));
+		
 		
 		// Write the temporary file
 		try {
@@ -166,9 +185,9 @@ public class CudaInterop /*implements Singleton*/ {
 	 * @param data	A subclass of CudaData that contains the data that are required for
 	 * 				calling the evaluation kernel (usually the inputs for the GP trees or
 	 * 				training instances)
-	 * @return	A float array containing the fitness value of each individual
+	 * @return	A KernelOutputData array that contains the output value of each individual on a training instance
 	 */
-	public double[] evaluatePopulation(List<List<TByteArrayList>> expressions, final CudaData data) {
+	public KernelOutputData[] evaluatePopulation(EvolutionState state, List<List<TByteArrayList>> expressions, final CudaData data) {
 		// First determine how many unevals we have in total
 		int indCount = 0;
 		int maxExpLengthtmp = 0;
@@ -183,6 +202,8 @@ public class CudaInterop /*implements Singleton*/ {
 		}
 		
 		final int maxExpLength = maxExpLengthtmp;
+		
+		// Now that I know how many individuals I have, each one should get a  
 
 		// Convert expressions to byte[]
 		byte[] population = new byte[indCount * maxExpLength];
@@ -199,26 +220,23 @@ public class CudaInterop /*implements Singleton*/ {
 		// Break population into chunks, each chunk is evaluated by a single GPU
 		TransScale scaler = TransScale.getInstance();
 		int gpuCount = scaler.getNumberOfDevices();
-		double[] fitnessResults = new double[indCount];	// The evaluated fitness values
+		KernelOutputData[] results = kernelInfo.instantiateOutputArray(state, problemSize, indCount);
 		
 		// Create gpuCount number of threads. Each thread will call "waitFor" for a single job 
 		Thread[] gpuInteropThreads = new Thread[gpuCount];
 		
 		int arrayCpyOffset = 0;	// Offset variable
-		int assignmentOffset = 0;	// Offset variable
+//		int assignmentOffset = 0;	// Offset variable
 		
 		List<byte[]> chunks = new ArrayList<>();
 		
 		for (i = 0 ; i < gpuCount ; i++) {
-			final GpuRunnerThread runner = new GpuRunnerThread();
-			runner.scaler = scaler;
-			runner.destination = fitnessResults;
-			runner.start = assignmentOffset;
-			
+			// Calculate the output share and population share of the thread
+			// that will be evaluating on the i'th GPU
 			final int thisOutputShare;
 			int thisPopShare;
 			
-			// *Evenly* divide the number of individuals
+			// *Evenly* divide the number of individuals, though the last one gets a larger portion
 			if (i == gpuCount - 1) {
 				thisOutputShare = indCount - i * (indCount / gpuCount);
 			}
@@ -226,9 +244,21 @@ public class CudaInterop /*implements Singleton*/ {
 				thisOutputShare = indCount / gpuCount;
 			}
 			
+			final GpuRunnerThread runner = new GpuRunnerThread();
+			runner.scaler = scaler; 
+			runner.destination = results;			
+//			runner.start = assignmentOffset;
+			runner.myShare = thisOutputShare;	// Set the length of the copy-back operation
+			runner.problemSize = this.problemSize;
+			
 			thisPopShare = thisOutputShare * maxExpLength;
 			
-			final CudaDouble2D chunkOutput = new CudaDouble2D(thisOutputShare, 1, 1, true);	// Allocate the output pointer for this portion
+			// Now allocate a 2D array of height [my portion of indCount] and width [problemSize]
+			// Each row represents an individual while each column represents the
+			// output value of the said individual for the corresponding training instance
+			String outputType = kernelInfo.getKernelOutput().getValue().replace("*", "");	// get rid of the pointer so as to prevent confusion for CudaType constructor		
+			CudaType outputCudaType = new CudaType(outputType);
+			final CudaPrimitive2D chunkOutput = instantiateForType(outputCudaType, problemSize, thisOutputShare);	// Allocate the output pointer for this portion 	
 			
 			byte[] popChunk  = new byte[thisPopShare];
 			System.arraycopy(population, arrayCpyOffset, popChunk, 0, thisPopShare);	// Copy this GPU's chunk of expressions
@@ -236,7 +266,7 @@ public class CudaInterop /*implements Singleton*/ {
 			final CudaByte2D devExpression = new CudaByte2D(thisPopShare, 1, 1, popChunk, true);	// Allocate device expression pointer
 			
 			arrayCpyOffset += thisPopShare;
-			assignmentOffset += thisOutputShare;
+//			assignmentOffset += thisOutputShare;
 			
 			Trigger pre = new Trigger() {
 				
@@ -245,7 +275,7 @@ public class CudaInterop /*implements Singleton*/ {
 					// Do the user's pre-invocation tasks
 					data.preInvocationTasks(module);
 					
-					chunkOutput.allocate();
+					chunkOutput.reallocate();
 					devExpression.reallocate();
 				}
 			};
@@ -254,9 +284,9 @@ public class CudaInterop /*implements Singleton*/ {
 				
 				@Override
 				public void doTask(CUmodule module) {
-					chunkOutput.refresh();
 					devExpression.free();
-					runner.result = chunkOutput.getUnclonedArray();
+					chunkOutput.refresh();					
+					runner.kernelResult = chunkOutput.getUnclonedArray();	// Assign the kernel output array to the raw result holder of this thread
 					chunkOutput.free();
 					
 					// Do the user's post-invocation tasks
@@ -278,6 +308,12 @@ public class CudaInterop /*implements Singleton*/ {
 			kernelJob.blockDimY = 1;
 			kernelJob.blockDimZ = 1;
 			
+			//FIXME
+			//FIXME
+			//FIXME	THE PIIIIIIIIIITCH SUPPORT!
+			//FIXME
+			//FIXME
+			
 			kernelJob.argSetter = new KernelArgSetter() {
 				
 				@Override
@@ -288,22 +324,25 @@ public class CudaInterop /*implements Singleton*/ {
 					int userArgsCount = extraArgumentPointers.length;
 					
 					/*
-					 * We need 4 addional spots for the following arguments defined in the
+					 * We need 5 additional spots for the following arguments defined in the
 					 * kernel template file:
+					 * 		inputPitch
+					 * 		outputPitch
 					 * 		individuals
 					 * 		indCounts
 					 * 		maxLength
-					 * 		fitnesses
 					 * 
 					 */
-					Pointer[] kernelArguments = new Pointer[userArgsCount + 4];
+					Pointer[] kernelArguments = new Pointer[userArgsCount + 6];
 					
 					// Copy user's pointers
 					System.arraycopy(extraArgumentPointers, 0, kernelArguments, 0, userArgsCount);
-					kernelArguments[userArgsCount] = devExpression.toPointer();
-					kernelArguments[userArgsCount + 1] = Pointer.to(new int[] {thisOutputShare});
-					kernelArguments[userArgsCount + 2] = Pointer.to(new int[] {maxExpLength});
-					kernelArguments[userArgsCount + 3] = chunkOutput.toPointer();
+					kernelArguments[userArgsCount++] = Pointer.to(data.getKernelInputPitchInElements());	// Input pitch
+					kernelArguments[userArgsCount++] = chunkOutput.toPointer();	// Output argument
+					kernelArguments[userArgsCount++] = Pointer.to(chunkOutput.getDevPitchInElements());	// Output pitch
+					kernelArguments[userArgsCount++] = devExpression.toPointer();	// This GPU's portion of the expression
+					kernelArguments[userArgsCount++] = Pointer.to(new int[] {thisOutputShare});	// This GPU's portion of the output
+					kernelArguments[userArgsCount] = Pointer.to(new int[] {maxExpLength});	// Maximum length of each expression
 					
 					return Pointer.to(kernelArguments);
 				}
@@ -328,15 +367,8 @@ public class CudaInterop /*implements Singleton*/ {
 		}		
 		
 		// No need to merge anything! The threads have done that :-)
-		return fitnessResults;
+		return results;
 	}
-	
-//	/**
-//	 * @return	The size of the problem (i.e. number of training instances)
-//	 */
-//	public int getProblemSize() {
-//		return this.problemSize;
-//	}
 	
 	/**
 	 * Returns the type of the specified argument of the CUDA kernel
@@ -394,6 +426,37 @@ public class CudaInterop /*implements Singleton*/ {
 	}
 	
 	/**
+	 * Utility method that would instantiate a proper CudaPrimitive2D type using the information
+	 * in the CudaType value supplied.
+	 * 
+	 * @param type	The CudaType value to use for determining the correct type to instantiate
+	 * @param width	The width of the 2D memory
+	 * @param height	The height of the 2D memory
+	 * @return	A correctly allocated CudaPrimitive2D instance
+	 */
+	private static CudaPrimitive2D instantiateForType(CudaType type, int width, int height) {
+		int numFields = type.getSize() / type.getPrimitiveSize();
+		String primitiveType = type.getPrimitiveType();
+		
+		CudaPrimitive2D result = null;
+		
+		if (primitiveType.equals("char"))
+			result = new CudaByte2D(width, height, numFields, new byte[width * height * numFields], true);	//FIXME in transscale, fix this crap!
+		else if (primitiveType.equals("short"))
+			result = new CudaShort2D(width, height, numFields, new short[width * height * numFields], true);
+		else if (primitiveType.equals("int"))
+			result = new CudaInteger2D(width, height, numFields, new int[width * height * numFields], true);
+		else if (primitiveType.equals("long"))
+			result = new CudaLong2D(width, height, numFields, new long[width * height * numFields], true);
+		else if (primitiveType.equals("float"))
+			result = new CudaFloat2D(width, height, numFields, new float[width * height * numFields], true);
+		else if (primitiveType.equals("double"))
+			result = new CudaDouble2D(width, height, numFields, new double[width * height * numFields], true);
+		
+		return result;
+	}
+	
+	/**
 	 * Helper thread that queues a job on GPU, waits for the job to finish and
 	 * then obtains the results and copies its portion of the output to the final
 	 * output.
@@ -403,20 +466,25 @@ public class CudaInterop /*implements Singleton*/ {
 	 */
 	private class GpuRunnerThread implements Runnable {
 		
-		public TransScale scaler;
-		public KernelInvoke kernelJob;
+		public TransScale scaler;	// The TransScale instance to use
+		public KernelInvoke kernelJob;	// The job to run on TransScale
 		
-		public double[] destination;
-		public double[] result;
-		public int start;
+		public KernelOutputData[] destination;	// Final place to store the output results of the kernel
+		public Object kernelResult;	// The raw output results of the kernel that will be transferred to host
+//		public int start;
+		public int myShare;		// How many individuals am I handling?
+		public int problemSize;	// Number of training instances (and by extension output elements generated by the kernel)
 
 		@Override
 		public void run() {
 			scaler.queueJob(kernelJob);
 			kernelJob.waitFor();
 			
-			// Copy my fitness values :-)
-			System.arraycopy(result, 0, destination, start, result.length);
+			// Copy my portion of the kernel output values :-)
+			for (int i = 0 ; i < destination.length ; i++) {
+				KernelOutputData item = destination[i];
+				item.copyValues(kernelResult, i * problemSize, problemSize);
+			}
 		}
 		
 	}
