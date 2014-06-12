@@ -1,0 +1,67 @@
+
+parent.0 = koza.params
+
+# the next four items are already defined in koza.params, but we
+# put them here to be clear.
+
+# We have one function set, of class GPFunctionSet
+gp.fs.size = 1
+gp.fs.0 = ec.gp.cuda.CudaFunctionSet
+# We'll call the function set "f0".
+gp.fs.0.name = f0
+
+# We have five functions in the function set.  They are:
+gp.fs.0.size = 5
+gp.fs.0.func.0 = app.tutorial4.func.X
+gp.fs.0.func.0.nc = nc0
+gp.fs.0.func.1 = app.tutorial4.func.Y
+gp.fs.0.func.1.nc = nc0
+gp.fs.0.func.2 = app.tutorial4.func.Add
+gp.fs.0.func.2.nc = nc2
+gp.fs.0.func.3 = app.tutorial4.func.Sub
+gp.fs.0.func.3.nc = nc2
+gp.fs.0.func.4 = app.tutorial4.func.Mul
+gp.fs.0.func.4.nc = nc2
+
+
+
+eval.problem = app.tutorial4.MultiValuedRegression
+eval.problem.data = app.tutorial4.TutorialData
+eval.problem.size = 9
+
+######################
+##	CUDA STUFF
+######################
+
+pop.subpop.0 = ec.gp.cuda.CudaSubpopulation
+eval = app.tutorial4.RegressionEvaluator
+pop.subpop.0.species.pipe.source.0 = ec.gp.cuda.CudaCrossoverPipeline
+pop.subpop.0.species.pipe.source.0.prob = 0.9
+pop.subpop.0.species.pipe.source.1 = ec.gp.cuda.CudaMutationPipeline
+pop.subpop.0.species.pipe.source.1.prob = 0.1
+
+cuda.kernel.args.size = 3
+cuda.kernel.args.0.name = x
+cuda.kernel.args.0.type = double*
+cuda.kernel.args.1.name = y
+cuda.kernel.args.1.type = double*
+cuda.kernel.args.2.name = expected
+cuda.kernel.args.2.type = double*
+
+
+eval.evaluation-method = gpu
+#jobs = 10
+generations = 100
+
+evalthreads = 				auto
+breedthreads = 				auto
+
+seed.0 =time
+seed.1 =time  
+seed.2 =time  
+seed.3 =time
+
+#Seed: -1936308582 -1936308581 -1936308580 -1936308579 
+
+quit-on-run-complete = false
+
