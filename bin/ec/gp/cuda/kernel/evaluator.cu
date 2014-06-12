@@ -14,40 +14,18 @@
 /** ================================================================================================== */
 
 /** The number of training instances that the individual is to be evaluated for */
-#define PROBLEM_SIZE 9
+#define PROBLEM_SIZE 1024
 #define BLOCK_SIZE 512	// Used for the shared memory definitions
 
 
 /************************************************************************************************************
  ************************************************************************************************************/
 
-/**
- * Does a vector reduction with the sum operation. This is usually required for most GP problems.
- * Feel free to use this function or other functions of your own.
- */
-//FIXME might not work for odd number of inputs
-__device__ inline void reduce(double *input) {
-	__syncthreads();
-
-	for (int stride = blockDim.x >> 1 ; stride > 0 ; stride >>= 1) {
-		if (threadIdx.x < stride) {
-			input[threadIdx.x]+= input[threadIdx.x + stride];
-		}
-		__syncthreads();
-	}
-
-	if (blockDim.x % 2 != 0) {	// For odd number of inputs
-		if (threadIdx.x == 0) {
-			input[0] += input[blockDim.x - 1];	// Add the last element by the first thread
-		}
-	}
-
-}
-
+//TODO DOC: sadly there is only support for 1 pitch value for all input instances (which should be more than enough)
 extern "C"
-__global__ void evaluate(double* x, double* y, double* expected, 
-		const char* __restrict__ individuals, const int indCounts, const int maxLength,
-		double *fitnesses)
+__global__ void evaluate(double* x, double* y,  int inputPitch,
+						double* output, int outputPitch,
+						const char* __restrict__ individuals, const int indCounts, const int maxLength)
 {
 	int blockIndex = blockIdx.x;
 	int threadIndex = threadIdx.x;
@@ -55,24 +33,21 @@ __global__ void evaluate(double* x, double* y, double* expected,
 	if (blockIndex >= indCounts)
 		return;
 
+	// Obtain pointer to the beginning of the memory space of the individual that
+	// this block will evaluate
 	const char* __restrict__ expression = &(individuals[blockIndex * maxLength]);
+	double* blockOutput = &(output[blockIndex * outputPitch]);
 
 	// the first thread should reset these values
-	if (threadIndex == 0) {
-		fitnesses[blockIndex] = 0;
-	}
+//	if (threadIndex == 0) {
+//		fitnesses[blockIndex] = 0;
+//	}
 
-	double stack[STACK_SIZE];
+	double stack[STACK_SIZE];	// The stack is defined as the same type as the kernel output
 	int sp;
 
 	// Determine how many fitness cases this thread should process
 	int portion = (PROBLEM_SIZE - 1)/ blockDim.x  + 1;
-
-
-	/*@@pre-eval-declare-provider@@*/
-	/**/
-	/**/__shared__ double sum[BLOCK_SIZE];
-	/**/sum[threadIndex] = 0;
 
 	for (int i = 0 ; i < portion; i++) {
 
@@ -115,29 +90,15 @@ default:printf("Unrecognized OPCODE in the expression tree!");break;
 			k++;
 		}
 
-		double eval_result;
-		pop(eval_result);
+		// Pop the top of the stack
+		double stackTop;
+		pop(stackTop);
 
 		if(sp!=-1)
-			printf("Stack pointer not -1 but is %d", sp);
+			printf("Stack pointer is not -1 but is %d", sp);
 
-		/*@@fitness-for-current-test-case@@*/
-		/**/double expectedResult = expected[tid];
-		/**/sum[threadIndex] += abs(expectedResult - eval_result);
-	}
+		// Assign the top of the stack to the output
+		blockOutput[tid] = stackTop;
 
-	/*@@calculate-fitness@@*/
-	/**///Should reduce the shared memory
-
-	/**/double PROBABLY_ZERO = 1.11E-15;
-	/**/if (sum[threadIndex] < PROBABLY_ZERO)
-		/**/sum[threadIndex] = (double)0.0;
-
-	reduce(sum);
-
-	// calculate the total fitness and assign it
-	if (threadIndex == 0) {
-		/*@@assign-fitness@@*/
-		fitnesses[blockIndex] = sum[0];
 	}
 }

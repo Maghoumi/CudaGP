@@ -8,6 +8,7 @@
 			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="CudaGP/lib"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="lib/all.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/ECJ"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/TransScale"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
