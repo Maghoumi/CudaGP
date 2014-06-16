@@ -34,7 +34,7 @@ eval.problem.size = 1024
 ######################
 
 pop.subpop.0 = ec.gp.cuda.CudaSubpopulation
-eval = app.tutorial4.RegressionEvaluator
+eval = ec.gp.cuda.CudaEvaluator
 pop.subpop.0.species.pipe.source.0 = ec.gp.cuda.CudaCrossoverPipeline
 pop.subpop.0.species.pipe.source.0.prob = 0.9
 pop.subpop.0.species.pipe.source.1 = ec.gp.cuda.CudaMutationPipeline

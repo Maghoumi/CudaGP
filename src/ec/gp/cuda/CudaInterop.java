@@ -2,10 +2,10 @@ package ec.gp.cuda;
 
 import ec.EvolutionState;
 import ec.Singleton;
+import ec.gp.cuda.kernel.KernelArgument;
 import ec.util.Parameter;
 import gnu.trove.list.array.TByteArrayList;
 
-import java.beans.DesignMode;
 import java.io.*;
 import java.util.*;
 
@@ -27,7 +27,7 @@ import com.sir_m2x.transscale.pointers.*;
  * @author Mehran Maghoumi
  *
  */
-public class CudaInterop /*implements Singleton*/ {
+public class CudaInterop implements Singleton {
 	
 	private static final long serialVersionUID = -1231586517576285043L;
 	
@@ -96,7 +96,7 @@ public class CudaInterop /*implements Singleton*/ {
 	 * Must parse the parameter file and extract useful stuff
 	 * @param base	Garbage base parameter (base will be created because it's easier)
 	 */
-//	@Override
+	@Override
 	public void setup(EvolutionState state, Parameter base) {
 		Parameter p = new Parameter(P_BASE);
 		
@@ -133,9 +133,9 @@ public class CudaInterop /*implements Singleton*/ {
 		
 		template = template.replace(T_KERNEL_ARGS, kernelInfo.getKernelArgSignature());
 		template = template.replace(T_KERNEL_OUT, kernelInfo.getKernelOutputSignature());
-		StringPair kernelOutput = kernelInfo.getKernelOutput();
-		String name = kernelOutput.getKey();
-		String type = kernelOutput.getValue();
+		KernelArgument kernelOutput = kernelInfo.getKernelOutput();
+		String name = kernelOutput.getName();
+		String type = kernelOutput.getType().getName();
 		template = template.replace(T_KERNEL_OUT_NAME, name);
 		template = template.replace(T_KERNEL_OUT_TYPE, type);
 		template = template.replace(T_KERNEL_OUT_TYPE_NOPOINTER, type.replace("*", ""));
@@ -256,7 +256,7 @@ public class CudaInterop /*implements Singleton*/ {
 			// Now allocate a 2D array of height [my portion of indCount] and width [problemSize]
 			// Each row represents an individual while each column represents the
 			// output value of the said individual for the corresponding training instance
-			String outputType = kernelInfo.getKernelOutput().getValue().replace("*", "");	// get rid of the pointer so as to prevent confusion for CudaType constructor		
+			String outputType = kernelInfo.getKernelOutput().getType().getPrimitiveType();	// get rid of the pointer so as to prevent confusion for CudaType constructor		
 			CudaType outputCudaType = new CudaType(outputType);
 			final CudaPrimitive2D chunkOutput = instantiateForType(outputCudaType, problemSize, thisOutputShare);	// Allocate the output pointer for this portion 	
 			
@@ -307,12 +307,6 @@ public class CudaInterop /*implements Singleton*/ {
 			kernelJob.blockDimX = this.evaluateBlockSize;
 			kernelJob.blockDimY = 1;
 			kernelJob.blockDimZ = 1;
-			
-			//FIXME
-			//FIXME
-			//FIXME	THE PIIIIIIIIIITCH SUPPORT!
-			//FIXME
-			//FIXME
 			
 			kernelJob.argSetter = new KernelArgSetter() {
 				
@@ -376,11 +370,11 @@ public class CudaInterop /*implements Singleton*/ {
 	 * @return	A string representing the type of the argument
 	 */
 	public String getArgumentType(String argName) {
-		List<StringPair> argList = kernelInfo.getArgsList();
+		List<KernelArgument> argList = kernelInfo.getArgsList();
 		
-		for (StringPair pair : argList) {
-			if (pair.getKey().equals(argName)) {
-				return pair.getValue();
+		for (KernelArgument pair : argList) {
+			if (pair.getName().equals(argName)) {
+				return pair.getName();
 			}
 		}
 		

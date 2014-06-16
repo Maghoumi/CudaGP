@@ -3,26 +3,23 @@ package ec.gp.cuda;
 import java.util.ArrayList;
 import java.util.List;
 
-import app.tutorial4.MultiValuedRegression;
 import ec.EvolutionState;
 import ec.Subpopulation;
 import ec.gp.GPIndividual;
 import ec.gp.GPProblem;
 import ec.simple.SimpleEvaluator;
-import ec.simple.SimpleFitness;
 import ec.simple.SimpleProblemForm;
 import ec.util.Parameter;
 import gnu.trove.list.array.TByteArrayList;
 
 /**
  * An evaluator which works exactly like SimpleEvaluator but performs the
- * evaluations in CUDA. You should subclass this class, implement the setFitness()
- * method and provide the subclass's name to use as the evaluator in ECJ's parameter file.
+ * evaluations in CUDA. You should use this evaluator in ECJ's parameter file
  * 
  * @author Mehran Maghoumi
  * 
  */
-public abstract class CudaEvaluator extends SimpleEvaluator {
+public class CudaEvaluator extends SimpleEvaluator {
 	
 	private static final long serialVersionUID = 2872338520868386315L;
 	
@@ -218,21 +215,6 @@ public abstract class CudaEvaluator extends SimpleEvaluator {
 		myUnevals.clear();
 	}
 	
-	/**
-	 * Sets the fitness of the given individual with respect to its fitness type
-	 * to the provided fitness value.
-	 * You may have used a specific fitness class as the fitness type of your individual.
-	 * This poses some difficulty when assigning a fitness to an individual because based on the
-	 * class of the fitness (KozaFitness, SimpleFitness, etc.) there are different methods for
-	 * assigning a fitness value to an individual.
-	 * You should implement this method based on the type of fitness you specified in the
-	 * ECJ's parameter file
-	 * 
-	 * @param individual	The individual to assign a fitness to
-	 * @param fitness	The calculated value of the fitness of the individual.
-	 */
-	public abstract void setFitness(EvolutionState state, GPIndividual individual, double fitness);
-
 	/** A private helper class for implementing multithreaded byte traversal */
 	private class ByteTraverseThread implements Runnable {
 		public CudaEvaluator me;

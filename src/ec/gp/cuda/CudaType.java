@@ -52,23 +52,23 @@ public class CudaType {
 			this.primitiveType = "char";
 			sizeInByte = Byte.SIZE/8;
 		}
-		else if (typeName.equals("short")) {
+		else if (typeName.contains("short")) {
 			this.primitiveType = "short";
 			sizeInByte = Short.SIZE/8;
 		}
-		else if (typeName.equals("int")) {
+		else if (typeName.contains("int")) {
 			this.primitiveType = "int";
 			sizeInByte = Integer.SIZE/8;
 		}
-		else if (typeName.equals("long")) {
+		else if (typeName.contains("long")) {
 			this.primitiveType = "long";
 			sizeInByte = Long.SIZE/8;
 		}
-		else if (typeName.equals("float")) {
+		else if (typeName.contains("float")) {
 			this.primitiveType = "float";
 			sizeInByte = Float.SIZE/8;
 		}
-		else if (typeName.equals("double")) {
+		else if (typeName.contains("double")) {
 			this.primitiveType = "double";
 			sizeInByte = Double.SIZE/8;
 		}

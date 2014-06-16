@@ -5,6 +5,7 @@ import java.util.List;
 
 import ec.EvolutionState;
 import ec.Singleton;
+import ec.gp.cuda.kernel.KernelArgument;
 import ec.util.Parameter;
 
 /**
@@ -37,10 +38,10 @@ public class CudaKernelInfo implements Singleton {
 	protected String name = "evaluate";	
 	
 	/** List of kernel arguments along with their types */
-	protected List<StringPair> argsList = new LinkedList<>();
+	protected List<KernelArgument> argsList = new LinkedList<>();
 	
-	/** The output of the kernel type and variable name */
-	protected StringPair kernelOutput;
+	/** The output of the kernel */
+	protected KernelArgument kernelOutput;
 
 	@Override
 	public void setup(EvolutionState state, Parameter base) {
@@ -61,7 +62,11 @@ public class CudaKernelInfo implements Singleton {
 		if (outputType == null)
 			state.output.fatal("Kernel output type is undefined");
 		
-		this.kernelOutput = new StringPair(outputName, outputType);
+		String outputClass = state.parameters.getString(p.push(P_CLASS), null);
+		if (outputClass == null)
+			state.output.fatal("Kernel output class is undefined");
+		
+		this.kernelOutput = new KernelArgument(outputName, outputType, outputClass);
 		
 		p = p.pop();
 		
@@ -95,7 +100,7 @@ public class CudaKernelInfo implements Singleton {
 			argType = argType.replace("-", " ");	// for const-int situations ==> const int
 			
 			// Add to the list of args
-			argsList.add(new StringPair(argName, argType));
+			argsList.add(new KernelArgument(argName, argType));
 			
 			p = p.pop();
 		} // end-for
@@ -126,7 +131,7 @@ public class CudaKernelInfo implements Singleton {
 	 * The list of the kernel arguments along with their types
 	 * @return
 	 */
-	public List<StringPair> getArgsList() {
+	public List<KernelArgument> getArgsList() {
 		return this.argsList;
 	}
 	
@@ -136,8 +141,8 @@ public class CudaKernelInfo implements Singleton {
 	public String getKernelArgSignature() {
 		StringBuilder result = new StringBuilder();
 		
-		for (StringPair pair : this.argsList) {
-			result.append(String.format("%s %s, ", pair.getValue(), pair.getKey()));
+		for (KernelArgument arg : this.argsList) {
+			result.append(arg.getKernelSignature());
 		}
 		
 		return result.toString();
@@ -147,13 +152,13 @@ public class CudaKernelInfo implements Singleton {
 	 * @return	The kernel output's portion of the kernel signature
 	 */
 	public String getKernelOutputSignature() {
-		return String.format("%s %s,", this.kernelOutput.getValue(), this.kernelOutput.getKey());
+		return this.kernelOutput.getKernelSignature();
 	}
 	
 	/**
 	 * @return	The name and the type of the kernel output variable
 	 */
-	public StringPair getKernelOutput() {
+	public KernelArgument getKernelOutput() {
 		return this.kernelOutput;
 	}
 	

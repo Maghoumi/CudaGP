@@ -121,22 +121,6 @@ public class MultiValuedRegression extends CudaProblem {
     	((GPIndividual)ind).trees[0].printTreeForHumans(state, log);
     }
     
-    public double getFitness(final EvolutionState state, final Individual ind, final int threadnum) {
-    	double sum = 0;
-    	double result;
-        
-        // Evaluate the tree using all training instances
-        for (int i= 0 ; i<problemData.getProblemSize() ; i++) {
-        	problemData.loadCurrentTrainingData(i);
-            ((GPIndividual)ind).trees[0].child.eval(state,threadnum,problemData,stack,((GPIndividual)ind),this);
-            
-            result = Math.abs(problemData.currentExpectedResult - problemData.generatedResult);
-            sum += result;
-        }
-        
-        return sum;
-    }
-    
     public static void main(String[] args) {
     	String[] arguments = new String[] {"-file", "bin/app/tutorial4/tutorial4.params"};
 //    	CudaPrimitive2D.usePitchedMemory(true);	// Do use the pitched memory FIXME pitch is not supported
